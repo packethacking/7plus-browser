@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>7plus browser</title>
+    <link rel="stylesheet" href="/src/ui.css" />
+  </head>
+  <body>
+    <main>
+      <h1>7plus</h1>
+      <p class="sub">Browser encoder/decoder for the 7PLUS store-and-forward format.</p>
+      <section class="pane" id="encode-pane">
+        <h2>Encode</h2>
+        <div class="drop" id="encode-drop">Drop a file here, or <label class="link">click to choose<input type="file" id="encode-input" hidden /></label></div>
+        <div class="status" id="encode-status"></div>
+      </section>
+      <section class="pane" id="decode-pane">
+        <h2>Decode</h2>
+        <div class="drop" id="decode-drop">Drop all .pNN parts (or a .7pl) here, or <label class="link">click to choose<input type="file" id="decode-input" multiple hidden /></label></div>
+        <div class="status" id="decode-status"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
