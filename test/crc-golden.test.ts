@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { mcrc, addCrc2, codeLineCrc14, crcAndLinenum } from '../src/sevenplus/crc.js';
 
-const sampleP01 = readFileSync(new URL('../sample-data/sample.p01', import.meta.url));
+const samplePart = readFileSync(new URL('../sample-data/fields.p01', import.meta.url));
 
-// Split sample.p01 by CRLF, keeping bytes as Uint8Array per line (no content
+// Split fields.p01 by CRLF, keeping bytes as Uint8Array per line (no content
 // conversion — 7plus is 8-bit clean).
 function splitLines(buf: Buffer): Uint8Array[] {
   const out: Uint8Array[] = [];
@@ -20,10 +20,10 @@ function splitLines(buf: Buffer): Uint8Array[] {
   return out;
 }
 
-describe('CRC golden values from sample.p01', () => {
-  const lines = splitLines(sampleP01);
+describe('CRC golden values from fields.p01', () => {
+  const lines = splitLines(samplePart);
 
-  it('parses sample.p01 into reasonable line count', () => {
+  it('parses fields.p01 into reasonable line count', () => {
     expect(lines.length).toBeGreaterThan(100);
   });
 
@@ -55,7 +55,7 @@ describe('CRC golden values from sample.p01', () => {
 
   // All structural lines (header/extended/code/footer) are 69 bytes. Identify
   // the code-line band as: lines[2..N-2] (skipping header, extended filename,
-  // and footer) for sample.p01.
+  // and footer) for fields.p01.
   it('identifies 138 code lines between header-block and footer', () => {
     // p01: line 0 = header, line 1 = extended filename, lines 2..139 = code,
     // line 140 = footer.

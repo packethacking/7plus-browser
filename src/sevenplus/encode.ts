@@ -26,6 +26,24 @@ export interface EncodeOptions {
    * initialize `_extended = '*'`).
    */
   extendedName?: boolean;
+  /**
+   * Split into roughly N equal parts (reference's `-sp N`). Overrides
+   * `blocksize` when provided.
+   */
+  partCount?: number;
+  /**
+   * Emit only these part numbers (1-based), e.g. `[1, 5, 6, 7]`. Splitting
+   * still uses the full part count — this just filters the output. Useful for
+   * resending a subset when the recipient reports missing parts. Reference:
+   * `-r 5-10,1`.
+   */
+  onlyParts?: Iterable<number>;
+  /**
+   * Optional string appended as one extra line after each part's footer.
+   * Reference's `-t` flag. Typical value: `/ex` to signal end-of-file to a
+   * packet BBS on upload.
+   */
+  terminator?: string;
 }
 
 export interface EncodedPart {
@@ -55,7 +73,12 @@ export function encodeFile(data: Uint8Array, opts: EncodeOptions): EncodedPart[]
   //   4. blocklines = ceil(blocksize / 62).
   //   5. parts = ceil(size / (blocklines * 62)).
   let blocksize = opts.blocksize ?? DEFAULT_BLOCKSIZE;
-  if (blocksize > 50000) {
+  if (opts.partCount != null) {
+    if (opts.partCount < 1 || !Number.isFinite(opts.partCount)) {
+      throw new Error(`partCount must be ≥1 (got ${opts.partCount})`);
+    }
+    blocksize = Math.ceil(Math.ceil((size + 61) / 62) / opts.partCount) * 62;
+  } else if (blocksize > 50000) {
     const requestedParts = blocksize - 50000;
     blocksize = Math.ceil((Math.ceil((size + 61) / 62)) / requestedParts) * 62;
   }
@@ -70,8 +93,11 @@ export function encodeFile(data: Uint8Array, opts: EncodeOptions): EncodedPart[]
 
   const baseName = dosBaseName(opts.filename);
   const result: EncodedPart[] = [];
+  const onlyParts = opts.onlyParts ? new Set(opts.onlyParts) : null;
+  const terminatorBytes = opts.terminator ? asciiLine(opts.terminator) : null;
 
   for (let part = 1; part <= parts; part++) {
+    if (onlyParts && !onlyParts.has(part)) continue;
     const buf: number[] = [];
 
     const startByte = (part - 1) * partPayload;
@@ -105,6 +131,8 @@ export function encodeFile(data: Uint8Array, opts: EncodeOptions): EncodedPart[]
       hdrName, part, parts, timestamp,
     }), sepBytes);
 
+    if (terminatorBytes) pushLine(buf, terminatorBytes, sepBytes);
+
     const partData = new Uint8Array(buf);
     const partName = parts === 1 ? `${baseName}.7pl` : `${baseName}.p${toHex2(part)}`;
     result.push({ name: partName, data: partData });
@@ -133,4 +161,14 @@ function toHex2(n: number): string {
 function pushLine(buf: number[], line: Uint8Array, sep: Uint8Array): void {
   for (const b of line) buf.push(b);
   for (const b of sep) buf.push(b);
+}
+
+function asciiLine(s: string): Uint8Array {
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c > 0xff) throw new Error(`terminator contains non-latin1 char: "${s}"`);
+    out[i] = c;
+  }
+  return out;
 }

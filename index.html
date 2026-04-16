@@ -13,12 +13,38 @@
       <section class="pane" id="encode-pane">
         <h2>Encode</h2>
         <div class="drop" id="encode-drop">Drop a file here, or <label class="link">click to choose<input type="file" id="encode-input" hidden /></label></div>
+        <fieldset class="opts">
+          <legend>Line endings</legend>
+          <label><input type="radio" name="linesep" value="crlf" checked /> CRLF — for disk / email / modern transfer</label>
+          <label><input type="radio" name="linesep" value="cr" /> CR — for packet radio / AX.25 BBSes</label>
+        </fieldset>
+        <details class="opts">
+          <summary>Advanced</summary>
+          <label class="field">
+            <span>Target bytes per part</span>
+            <input type="number" id="opt-bytes" min="62" step="62" placeholder="8556 (default)" />
+          </label>
+          <label class="field">
+            <span>Or: split into N parts</span>
+            <input type="number" id="opt-parts" min="1" max="255" placeholder="auto" />
+          </label>
+          <label class="field">
+            <span>BBS terminator line (<code>-t</code>)</span>
+            <input type="text" id="opt-terminator" placeholder="e.g. /ex" />
+          </label>
+          <label class="field">
+            <span>Only emit parts (<code>-r</code>)</span>
+            <input type="text" id="opt-only" placeholder="e.g. 1,5-7" />
+          </label>
+          <p class="hint">“Bytes per part” and “N parts” are alternatives — if both are set, part count wins. Subset is useful for resending missing parts (keep the same split as the first upload).</p>
+        </details>
         <div class="status" id="encode-status"></div>
       </section>
       <section class="pane" id="decode-pane">
         <h2>Decode</h2>
         <div class="drop" id="decode-drop">Drop all .pNN parts (or a .7pl) here, or <label class="link">click to choose<input type="file" id="decode-input" multiple hidden /></label></div>
         <div class="status" id="decode-status"></div>
+        <div id="decode-preview" class="preview" hidden></div>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

@@ -8,11 +8,11 @@ function readSample(name: string): Uint8Array {
 }
 
 describe('decoder against sample-data', () => {
-  const source = readSample('sample.png');
-  const partNames = Array.from({ length: 19 }, (_, i) => `sample.p${(i + 1).toString(16).padStart(2, '0')}`);
+  const source = readSample('fields.jpg');
+  const partNames = Array.from({ length: 17 }, (_, i) => `fields.p${(i + 1).toString(16).padStart(2, '0')}`);
   const parts = partNames.map((n) => ({ name: n, data: readSample(n) }));
 
-  it('decodes all 19 parts back to sample.png byte-for-byte', () => {
+  it('decodes all 17 parts back to fields.jpg byte-for-byte', () => {
     const result = decodeParts(parts);
     expect(result.data.length).toBe(source.length);
     expect(result.stats.corrupted).toBe(0);
@@ -26,7 +26,7 @@ describe('decoder against sample-data', () => {
 
   it('recovers the extended filename', () => {
     const result = decodeParts(parts);
-    expect(result.filename).toBe('sample.png');
+    expect(result.filename).toBe('fields.jpg');
   });
 
   it('extracts a timestamp from the footer', () => {

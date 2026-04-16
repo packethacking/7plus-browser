@@ -32,3 +32,14 @@ h1 { margin: 0 0 0.25rem; }
 .link { color: #4a90e2; cursor: pointer; text-decoration: underline; }
 .status { margin-top: 0.75rem; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.875rem; white-space: pre-wrap; }
 .status.err { color: #c00; }
+.opts { margin: 0.75rem 0 0; padding: 0.5rem 0.75rem; border: 1px solid #eee; border-radius: 6px; }
+.opts legend, details.opts > summary { padding: 0 0.25rem; color: #666; font-size: 0.8rem; cursor: pointer; }
+.opts label { display: block; font-size: 0.875rem; padding: 0.15rem 0; }
+.opts .field { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
+.opts .field > span { flex: 1; color: #444; }
+.opts .field input[type="number"], .opts .field input[type="text"] {
+  width: 12rem; padding: 0.25rem 0.4rem; border: 1px solid #ccc; border-radius: 4px; font: inherit;
+}
+.opts .hint { margin: 0.5rem 0 0; font-size: 0.75rem; color: #888; }
+.preview { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.preview img { max-width: 100%; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; }
