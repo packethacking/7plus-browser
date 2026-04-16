@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run build
+
+      - name: Package dist/ as zip and tar.gz
+        id: pkg
+        run: |
+          TAG="v$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          cd dist
+          zip -r "../7plus-browser-${TAG}.zip" .
+          tar -czf "../7plus-browser-${TAG}.tar.gz" .
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.pkg.outputs.tag }}
+          name: ${{ steps.pkg.outputs.tag }}
+          body: |
+            Automated build from commit ${{ github.sha }}.
+
+            Download either archive, extract its contents, and serve the files from any static web host (nginx, Apache, S3, GitHub Pages, etc). No server-side runtime is required.
+
+            - `7plus-browser-${{ steps.pkg.outputs.tag }}.zip`
+            - `7plus-browser-${{ steps.pkg.outputs.tag }}.tar.gz`
+          files: |
+            7plus-browser-${{ steps.pkg.outputs.tag }}.zip
+            7plus-browser-${{ steps.pkg.outputs.tag }}.tar.gz
