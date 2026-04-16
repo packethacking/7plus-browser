@@ -68,3 +68,13 @@ Upload the contents of `dist/` to any static host:
 - **Local / offline**: open `dist/index.html` directly — works from `file://` in most browsers.
 
 No server-side configuration is required beyond serving static files with the usual MIME types.
+
+### Cutting a release
+
+`.github/workflows/release.yml` builds and publishes a GitHub release whenever the version in `package.json` changes. Workflow:
+
+1. Bump the `version` field in `package.json` (semver — e.g. `0.1.0` → `0.2.0`).
+2. Commit and push to `main`.
+3. CI runs tests, builds `dist/`, and publishes a release tagged `v<version>` with `7plus-browser-v<version>.zip` and `.tar.gz` attached.
+
+Pushes that don't bump the version still run tests and build, but skip the release step (so you get CI coverage without tag noise).

@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed so we can see existing tags
 
       - uses: actions/setup-node@v4
         with:
@@ -25,27 +27,40 @@ jobs:
 
       - run: npm run build
 
-      - name: Package dist/ as zip and tar.gz
-        id: pkg
+      - name: Determine version from package.json
+        id: ver
         run: |
-          TAG="v$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists — skipping release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Package dist/ as zip and tar.gz
+        if: steps.ver.outputs.release == 'true'
+        run: |
           cd dist
-          zip -r "../7plus-browser-${TAG}.zip" .
-          tar -czf "../7plus-browser-${TAG}.tar.gz" .
+          zip -r "../7plus-browser-${{ steps.ver.outputs.tag }}.zip" .
+          tar -czf "../7plus-browser-${{ steps.ver.outputs.tag }}.tar.gz" .
 
       - name: Create GitHub release
+        if: steps.ver.outputs.release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.pkg.outputs.tag }}
-          name: ${{ steps.pkg.outputs.tag }}
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
           body: |
             Automated build from commit ${{ github.sha }}.
 
             Download either archive, extract its contents, and serve the files from any static web host (nginx, Apache, S3, GitHub Pages, etc). No server-side runtime is required.
 
-            - `7plus-browser-${{ steps.pkg.outputs.tag }}.zip`
-            - `7plus-browser-${{ steps.pkg.outputs.tag }}.tar.gz`
+            - `7plus-browser-${{ steps.ver.outputs.tag }}.zip`
+            - `7plus-browser-${{ steps.ver.outputs.tag }}.tar.gz`
           files: |
-            7plus-browser-${{ steps.pkg.outputs.tag }}.zip
-            7plus-browser-${{ steps.pkg.outputs.tag }}.tar.gz
+            7plus-browser-${{ steps.ver.outputs.tag }}.zip
+            7plus-browser-${{ steps.ver.outputs.tag }}.tar.gz
