@@ -56,18 +56,17 @@ Runs the 22-test Vitest suite: CRC goldens, byte-identical encode against refere
 npm run build
 ```
 
-Produces `dist/` containing `index.html` plus a hashed JS+CSS bundle (~14 kB total, ~5.5 kB gzipped).
+Produces `dist/index.html` — a single self-contained HTML file with JS and CSS inlined (~20 kB, ~8 kB gzipped). No sibling assets.
 
 ### Deploy
 
-Upload the contents of `dist/` to any static host:
+Copy `dist/index.html` anywhere that serves static files — or just open it locally:
 
-- **nginx / Apache**: copy `dist/*` into the document root.
-- **GitHub Pages**: push `dist/` to the `gh-pages` branch (or configure Pages to serve from a `/docs` folder).
-- **S3 / Cloudflare R2 / Netlify / Vercel**: point the static-site deployment at `dist/`.
-- **Local / offline**: open `dist/index.html` directly — works from `file://` in most browsers.
+- **nginx / Apache**: drop it into the document root (or any subfolder).
+- **GitHub Pages / S3 / Cloudflare R2 / Netlify / Vercel**: upload the single file.
+- **Local / offline**: open `dist/index.html` directly — works from `file://`, a USB stick, an email attachment.
 
-No server-side configuration is required beyond serving static files with the usual MIME types.
+Because JS and CSS are inlined, there are no sibling paths to resolve, so it works regardless of subfolder depth, trailing-slash quirks, or URL rewrites.
 
 ### Cutting a release
 
@@ -75,6 +74,6 @@ No server-side configuration is required beyond serving static files with the us
 
 1. Bump the `version` field in `package.json` (semver — e.g. `0.1.0` → `0.2.0`).
 2. Commit and push to `main`.
-3. CI runs tests, builds `dist/`, and publishes a release tagged `v<version>` with `7plus-browser-v<version>.zip` and `.tar.gz` attached.
+3. CI runs tests, builds, and publishes a release tagged `v<version>` with a single `7plus-browser-v<version>.html` file attached.
 
 Pushes that don't bump the version still run tests and build, but skip the release step (so you get CI coverage without tag noise).

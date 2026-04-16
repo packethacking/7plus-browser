@@ -41,12 +41,9 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Package dist/ as zip and tar.gz
+      - name: Name the single-file build
         if: steps.ver.outputs.release == 'true'
-        run: |
-          cd dist
-          zip -r "../7plus-browser-${{ steps.ver.outputs.tag }}.zip" .
-          tar -czf "../7plus-browser-${{ steps.ver.outputs.tag }}.tar.gz" .
+        run: cp dist/index.html "7plus-browser-${{ steps.ver.outputs.tag }}.html"
 
       - name: Create GitHub release
         if: steps.ver.outputs.release == 'true'
@@ -57,10 +54,8 @@ jobs:
           body: |
             Automated build from commit ${{ github.sha }}.
 
-            Download either archive, extract its contents, and serve the files from any static web host (nginx, Apache, S3, GitHub Pages, etc). No server-side runtime is required.
+            The build is a single self-contained HTML file — JS and CSS are inlined. Drop it on any static host, open it with `file://`, serve it from a USB stick, email it to a friend. No sibling assets to deploy alongside.
 
-            - `7plus-browser-${{ steps.ver.outputs.tag }}.zip`
-            - `7plus-browser-${{ steps.ver.outputs.tag }}.tar.gz`
+            - `7plus-browser-${{ steps.ver.outputs.tag }}.html`
           files: |
-            7plus-browser-${{ steps.ver.outputs.tag }}.zip
-            7plus-browser-${{ steps.ver.outputs.tag }}.tar.gz
+            7plus-browser-${{ steps.ver.outputs.tag }}.html
