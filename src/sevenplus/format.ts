@@ -191,21 +191,23 @@ export function buildCodeLine(payload: Uint8Array, linenum: number): Uint8Array 
       }
       after[off + j] = v;
     }
-    // Bit-squeeze — see encode.c 580..587.
-    after[off + 7] =  after[off + 7]              | ((after[off + 6] & 0x7fn) << 24n);
-    after[off + 6] = (after[off + 6] >> 7n)       | ((after[off + 5] & 0x3fn) << 25n);
-    after[off + 5] = (after[off + 5] >> 6n)       | ((after[off + 4] & 0x1fn) << 26n);
-    after[off + 4] = (after[off + 4] >> 5n)       | ((after[off + 3] & 0x0fn) << 27n);
-    after[off + 3] = (after[off + 3] >> 4n)       | ((after[off + 2] & 0x07n) << 28n);
-    after[off + 2] = (after[off + 2] >> 3n)       | ((after[off + 1] & 0x03n) << 29n);
-    after[off + 1] = (after[off + 1] >> 2n)       | ((after[off + 0] & 0x01n) << 30n);
-    after[off + 0] = (after[off + 0] >> 1n);
+    // Bit-squeeze — see encode.c 580..587. `!` assertions: BigUint64Array
+    // access is typed as `bigint | undefined` under noUncheckedIndexedAccess,
+    // but `off + 0..7` is always in range (after has length 16, g ∈ {0,1}).
+    after[off + 7] =  after[off + 7]!              | ((after[off + 6]! & 0x7fn) << 24n);
+    after[off + 6] = (after[off + 6]! >> 7n)       | ((after[off + 5]! & 0x3fn) << 25n);
+    after[off + 5] = (after[off + 5]! >> 6n)       | ((after[off + 4]! & 0x1fn) << 26n);
+    after[off + 4] = (after[off + 4]! >> 5n)       | ((after[off + 3]! & 0x0fn) << 27n);
+    after[off + 3] = (after[off + 3]! >> 4n)       | ((after[off + 2]! & 0x07n) << 28n);
+    after[off + 2] = (after[off + 2]! >> 3n)       | ((after[off + 1]! & 0x03n) << 29n);
+    after[off + 1] = (after[off + 1]! >> 2n)       | ((after[off + 0]! & 0x01n) << 30n);
+    after[off + 0] = (after[off + 0]! >> 1n);
   }
 
   const D216 = 216n;
   let j = 0;
   for (let i = 0; i < 16; i++) {
-    let v = after[i];
+    let v = after[i]!;
     line[j++] = code[Number(v % D216)]!;
     v /= D216;
     line[j++] = code[Number(v % D216)]!;
