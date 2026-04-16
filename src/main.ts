@@ -48,22 +48,19 @@ function setupDecode(): void {
   wireDropZone(drop, input, async (files) => {
     if (files.length === 0) return;
     status.className = 'status';
-    status.textContent = `Decoding ${files.length} part${files.length === 1 ? '' : 's'}…`;
+    status.textContent = `Scanning ${files.length} file${files.length === 1 ? '' : 's'}…`;
     try {
-      const inputs: DecodeInputPart[] = await Promise.all(
-        files.map(async (f) => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) })),
-      );
-      const result = decodeParts(inputs);
-      const previewed = renderPreview(result.filename, result.data);
-      if (!previewed) downloadBlob(result.filename, result.data);
-      const ts = result.timestamp != null ? new Date(result.timestamp * 1000).toISOString() : 'none';
-      const parts = [
-        `Recovered ${result.filename} (${result.data.length} bytes)`,
-        `Lines: ${result.stats.totalCodeLines}  corrupted: ${result.stats.corrupted}  missing: ${result.stats.missing}`,
-        `Timestamp: ${ts}`,
-        previewed ? 'Previewed inline (right-click → Save As to download).' : '',
-      ].filter(Boolean);
-      status.textContent = parts.join('\n');
+      let added = 0, dupes = 0, total = 0;
+      for (const f of files) {
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const r = absorbBytes(bytes);
+        added += r.added; dupes += r.dupes; total += r.total;
+      }
+      if (total === 0) {
+        showError(status, 'No 7PLUS parts found in the dropped file(s).');
+        return;
+      }
+      renderPasteStatus(status, { added, dupes });
     } catch (err) {
       showError(status, err);
     }
@@ -80,7 +77,6 @@ function setupPaste(): void {
   const textarea = $<HTMLTextAreaElement>('paste-input');
   const scan = $<HTMLButtonElement>('paste-scan');
   const reset = $<HTMLButtonElement>('paste-reset');
-  const fileInput = $<HTMLInputElement>('paste-file');
   const status = $('paste-status');
 
   scan.addEventListener('click', () => {
@@ -97,27 +93,6 @@ function setupPaste(): void {
       }
       textarea.value = '';
       renderPasteStatus(status, added);
-    } catch (err) {
-      showError(status, err);
-    }
-  });
-
-  fileInput.addEventListener('change', async () => {
-    const files = fileInput.files ? Array.from(fileInput.files) : [];
-    fileInput.value = '';
-    if (files.length === 0) return;
-    try {
-      let total = 0, dupes = 0;
-      for (const f of files) {
-        const bytes = new Uint8Array(await f.arrayBuffer());
-        const r = absorbBytes(bytes);
-        total += r.added; dupes += r.dupes;
-      }
-      if (total === 0 && dupes === 0) {
-        showError(status, 'No 7plus parts found in the selected file(s).');
-        return;
-      }
-      renderPasteStatus(status, { added: total, dupes });
     } catch (err) {
       showError(status, err);
     }
