@@ -44,9 +44,23 @@
       <section class="pane" id="decode-pane">
         <h2>Decode</h2>
         <div class="drop" id="decode-drop">Drop all .pNN parts (or a .7pl) here, or <label class="link">click to choose<input type="file" id="decode-input" multiple hidden /></label></div>
+        <details class="opts">
+          <summary>Paste mail from a BBS</summary>
+          <p class="hint">Paste one or more BBS mail messages (or raw 7plus lines). We’ll scan for headers/footers and pull every part out, across as many pastes as it takes. Progress is shown per file. If pasting loses bytes (some terminals mangle the 0xb0 sentinel bytes), save the mail as a file and drop it below instead.</p>
+          <textarea id="paste-input" rows="8" placeholder="Paste the entire mail here, including headers and surrounding text — we'll find the parts."></textarea>
+          <div class="paste-actions">
+            <button type="button" id="paste-scan">Scan paste</button>
+            <label class="paste-filebtn">Scan file(s)…<input type="file" id="paste-file" multiple hidden /></label>
+            <button type="button" id="paste-reset">Reset</button>
+          </div>
+          <div id="paste-status" class="status"></div>
+        </details>
         <div class="status" id="decode-status"></div>
         <div id="decode-preview" class="preview" hidden></div>
       </section>
+      <footer class="site-footer">
+        Something not work? Please <a href="https://github.com/packethacking/7plus-browser/issues" target="_blank" rel="noopener">raise an issue</a> — attach the file you were trying to encode (or the parts/paste you were trying to decode) and describe what happened vs. what you expected.
+      </footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

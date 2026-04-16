@@ -87,7 +87,7 @@ function parseHeader(line: Uint8Array): HeaderFields | null {
   const blockSize = parseInt(text.slice(40, 44), 16);
   if (text[44] !== ' ') return null;
   const blockLines = parseInt(text.slice(45, 48), 16);
-  if (text.slice(48, 62) !== ' (7PLUS v2.2) ') return null;
+  if (!/^ \(7PLUS v2\.\d\) $/.test(text.slice(48, 62))) return null;
   if (line[62] !== 0xb0 || line[63] !== 0xb1 || line[64] !== 0xb2) return null;
   const extended = line[65] === 0x2a; // '*'
   if (
@@ -314,4 +314,61 @@ export function decodeParts(inputs: DecodeInputPart[]): DecodeResult {
 
 function latin1(buf: Uint8Array): string {
   return new TextDecoder('latin1').decode(buf);
+}
+
+export interface ExtractedPart {
+  filename: string;
+  part: number;
+  parts: number;
+  data: Uint8Array;
+}
+
+/**
+ * Scan a mixed blob (e.g. the body of a BBS mail dump containing one or more
+ * 7PLUS parts surrounded by headers, signatures, quoted text) and pull out
+ * every part it contains. Returns each part as a self-contained .pXX-style
+ * blob (header + body + footer, CRLF-joined) along with identifying metadata.
+ *
+ * Part boundaries are detected by a valid header line followed later by a
+ * valid footer line. Garbage lines between them are kept — decodeParts will
+ * ignore lines that aren't 69 bytes or don't CRC-pass.
+ */
+export function extractParts(raw: Uint8Array): ExtractedPart[] {
+  const lines = splitLines(raw);
+  const out: ExtractedPart[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i]!;
+    const header = line.length === 69 ? parseHeader(line) : null;
+    if (!header) { i++; continue; }
+    let footerIdx = -1;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j]!.length === 69 && parseFooter(lines[j]!)) {
+        footerIdx = j;
+        break;
+      }
+    }
+    if (footerIdx === -1) break;
+    out.push({
+      filename: header.hdrName.trim(),
+      part: header.part,
+      parts: header.parts,
+      data: joinCRLF(lines.slice(i, footerIdx + 1)),
+    });
+    i = footerIdx + 1;
+  }
+  return out;
+}
+
+function joinCRLF(lines: Uint8Array[]): Uint8Array {
+  let total = 0;
+  for (const line of lines) total += line.length + 2;
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const line of lines) {
+    out.set(line, off); off += line.length;
+    out[off++] = CR;
+    out[off++] = LF;
+  }
+  return out;
 }

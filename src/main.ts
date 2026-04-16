@@ -1,5 +1,5 @@
 import { encodeFile, type EncodeOptions, type EncodedPart, type LineSep } from './sevenplus/encode.js';
-import { decodeParts, type DecodeInputPart } from './sevenplus/decode.js';
+import { decodeParts, extractParts, type DecodeInputPart } from './sevenplus/decode.js';
 import { buildStoredZip } from './zip.js';
 
 const previewUrls: string[] = [];
@@ -12,6 +12,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 
 setupEncode();
 setupDecode();
+setupPaste();
 
 function setupEncode(): void {
   const drop = $('encode-drop');
@@ -69,26 +70,272 @@ function setupDecode(): void {
   });
 }
 
+/**
+ * Accumulates parts scanned across multiple pastes, keyed by filename→part#.
+ * A fresh paste adds to this; the Reset button clears it.
+ */
+const pasteBuckets = new Map<string, Map<number, { total: number; data: Uint8Array }>>();
+
+function setupPaste(): void {
+  const textarea = $<HTMLTextAreaElement>('paste-input');
+  const scan = $<HTMLButtonElement>('paste-scan');
+  const reset = $<HTMLButtonElement>('paste-reset');
+  const fileInput = $<HTMLInputElement>('paste-file');
+  const status = $('paste-status');
+
+  scan.addEventListener('click', () => {
+    const txt = textarea.value;
+    if (!txt.trim()) {
+      showError(status, 'Paste some mail text first.');
+      return;
+    }
+    try {
+      const added = absorbBytes(latin1ToBytes(txt));
+      if (added.total === 0) {
+        showError(status, 'No 7plus parts found in the pasted text.');
+        return;
+      }
+      textarea.value = '';
+      renderPasteStatus(status, added);
+    } catch (err) {
+      showError(status, err);
+    }
+  });
+
+  fileInput.addEventListener('change', async () => {
+    const files = fileInput.files ? Array.from(fileInput.files) : [];
+    fileInput.value = '';
+    if (files.length === 0) return;
+    try {
+      let total = 0, dupes = 0;
+      for (const f of files) {
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const r = absorbBytes(bytes);
+        total += r.added; dupes += r.dupes;
+      }
+      if (total === 0 && dupes === 0) {
+        showError(status, 'No 7plus parts found in the selected file(s).');
+        return;
+      }
+      renderPasteStatus(status, { added: total, dupes });
+    } catch (err) {
+      showError(status, err);
+    }
+  });
+
+  reset.addEventListener('click', () => {
+    pasteBuckets.clear();
+    textarea.value = '';
+    status.className = 'status';
+    status.textContent = '';
+  });
+}
+
+/**
+ * Run extractParts over a raw byte blob and merge any new parts into the
+ * shared pasteBuckets. Returns the count of parts actually added and of
+ * duplicates we already had.
+ */
+function absorbBytes(bytes: Uint8Array): { added: number; dupes: number; total: number } {
+  const found = extractParts(bytes);
+  let added = 0, dupes = 0;
+  for (const p of found) {
+    let bucket = pasteBuckets.get(p.filename);
+    if (!bucket) { bucket = new Map(); pasteBuckets.set(p.filename, bucket); }
+    if (bucket.has(p.part)) { dupes++; continue; }
+    bucket.set(p.part, { total: p.parts, data: p.data });
+    added++;
+  }
+  return { added, dupes, total: found.length };
+}
+
+function renderPasteStatus(status: HTMLElement, summary: { added: number; dupes: number }): void {
+  status.className = 'status';
+  status.replaceChildren();
+
+  const header = document.createElement('div');
+  header.textContent = `Scanned: +${summary.added} new part${summary.added === 1 ? '' : 's'}${summary.dupes ? `, ${summary.dupes} duplicate` : ''}`;
+  status.appendChild(header);
+
+  const completed: string[] = [];
+  for (const [name, bucket] of pasteBuckets) {
+    const first = bucket.values().next().value;
+    const total = first?.total ?? 0;
+    const have = [...bucket.keys()].sort((a, b) => a - b);
+    const missing: number[] = [];
+    for (let p = 1; p <= total; p++) if (!bucket.has(p)) missing.push(p);
+
+    const row = document.createElement('div');
+    row.className = 'paste-row';
+    if (missing.length === 0 && total > 0) {
+      completed.push(name);
+      row.textContent = `  ✓ ${name} — all ${total} parts, decoding…`;
+      // Snapshot parts now so the button still works after we delete the
+      // bucket below (post-decode).
+      const snap: [number, Uint8Array][] = [...bucket.entries()].map(([p, v]) => [p, v.data]);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'partial-btn';
+      btn.textContent = 'Download all parts';
+      btn.addEventListener('click', () => downloadAllPartsZip(name, total, snap));
+      row.appendChild(btn);
+    } else {
+      row.textContent = `  ${name} — ${have.length}/${total}, missing: ${formatRanges(missing)}`;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'partial-btn';
+      btn.textContent = 'Download partial ZIP';
+      btn.addEventListener('click', () => downloadPartialZip(name));
+      row.appendChild(btn);
+    }
+    status.appendChild(row);
+  }
+
+  // Decode each completed file, then remove from bucket so we don't re-decode.
+  // Clear the preview pane once so multiple image results can stack up.
+  if (completed.length > 0) clearPreview();
+  for (const name of completed) {
+    const bucket = pasteBuckets.get(name)!;
+    const inputs: DecodeInputPart[] = [...bucket.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([part, v]) => ({ name: `${name}.p${toHex2(part)}`, data: v.data }));
+    const resultLine = document.createElement('div');
+    try {
+      const result = decodeParts(inputs);
+      const previewed = appendPreview(result.filename, result.data);
+      if (!previewed) downloadBlob(result.filename, result.data);
+      resultLine.textContent = `    → ${result.filename} (${result.data.length} bytes)${previewed ? ' previewed below' : ' downloaded'}`;
+    } catch (err) {
+      resultLine.textContent = `    ! ${name}: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    status.appendChild(resultLine);
+    pasteBuckets.delete(name);
+  }
+}
+
+/**
+ * Bundle the parts we've collected so far for a given filename into a ZIP,
+ * alongside a README.txt explaining which parts are missing. Useful when a
+ * single paste only carries a subset and the user wants to save progress
+ * (or hand the partial set off to someone else to fill in the gaps).
+ */
+/**
+ * Bundle a complete set of parts for a given filename into a ZIP. Offered as
+ * a convenience for users who want to re-send the full .pXX set to someone
+ * else without having to re-scan or re-encode.
+ */
+function downloadAllPartsZip(filename: string, total: number, parts: [number, Uint8Array][]): void {
+  const baseName = filename.replace(/\.[^.]*$/, '') || filename;
+  const entries = [...parts]
+    .sort(([a], [b]) => a - b)
+    .map(([p, data]) => ({ name: `${baseName}.p${toHex2(p)}`, data }));
+  const readme =
+    `Complete 7PLUS parts for ${filename}\n` +
+    `\n` +
+    `Total parts: ${total}\n` +
+    `\n` +
+    `Drop all .p?? files into the decoder together to rebuild ${filename}.\n`;
+  entries.push({ name: 'README.txt', data: new TextEncoder().encode(readme) });
+  const zip = buildStoredZip(entries);
+  downloadBlob(`${baseName}-parts.zip`, zip);
+}
+
+function downloadPartialZip(filename: string): void {
+  const bucket = pasteBuckets.get(filename);
+  if (!bucket) return;
+  const first = bucket.values().next().value;
+  const total = first?.total ?? 0;
+  const present = [...bucket.keys()].sort((a, b) => a - b);
+  const missing: number[] = [];
+  for (let p = 1; p <= total; p++) if (!bucket.has(p)) missing.push(p);
+
+  const baseName = filename.replace(/\.[^.]*$/, '') || filename;
+  const entries = present.map((p) => ({
+    name: `${baseName}.p${toHex2(p)}`,
+    data: bucket.get(p)!.data,
+  }));
+  const readme =
+    `Partial 7PLUS parts for ${filename}\n` +
+    `\n` +
+    `Total parts expected: ${total}\n` +
+    `Parts present (${present.length}): ${formatRanges(present)}\n` +
+    `Parts missing (${missing.length}): ${formatRanges(missing)}\n` +
+    `\n` +
+    `To finish decoding this file you still need parts ${formatRanges(missing)}.\n` +
+    `Drop all .p?? files into the decoder together once you have the full set.\n`;
+  entries.push({ name: 'README.txt', data: new TextEncoder().encode(readme) });
+
+  const zip = buildStoredZip(entries);
+  downloadBlob(`${baseName}-partial.zip`, zip);
+}
+
+function toHex2(n: number): string {
+  return n.toString(16).padStart(2, '0');
+}
+
+/** Render a missing-parts list as compact ranges, e.g. [1,2,3,5,7,8] → "1-3, 5, 7-8". */
+function formatRanges(nums: number[]): string {
+  if (nums.length === 0) return 'none';
+  const parts: string[] = [];
+  let lo = nums[0]!, hi = lo;
+  for (let i = 1; i < nums.length; i++) {
+    const n = nums[i]!;
+    if (n === hi + 1) { hi = n; continue; }
+    parts.push(lo === hi ? `${lo}` : `${lo}-${hi}`);
+    lo = hi = n;
+  }
+  parts.push(lo === hi ? `${lo}` : `${lo}-${hi}`);
+  return parts.join(', ');
+}
+
+/**
+ * Convert a string to bytes using Latin-1 (codepoint ≤ 255 → one byte).
+ * 7PLUS uses raw bytes including 0xb0/0xb1/0xb2 sentinel markers; UTF-8
+ * decoding would replace those with U+FFFD. We require the paste to have
+ * preserved the original bytes (most terminals/clients do this when the
+ * source was served as ISO-8859-1, which is the packet-radio norm).
+ */
+function latin1ToBytes(s: string): Uint8Array {
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    out[i] = c > 0xff ? 0x3f : c; // '?' for anything that won't fit
+  }
+  return out;
+}
+
 /** Returns true if we rendered an inline preview (and skipped the download). */
 function renderPreview(filename: string, data: Uint8Array): boolean {
+  clearPreview();
+  return appendPreview(filename, data);
+}
+
+function clearPreview(): void {
   const pane = $('decode-preview');
-  // Clear any prior preview and revoke its object URL so we don't leak memory.
   pane.replaceChildren();
   for (const url of previewUrls.splice(0)) URL.revokeObjectURL(url);
+  pane.hidden = true;
+}
 
+/** Append an image to the preview pane without clearing earlier previews. */
+function appendPreview(filename: string, data: Uint8Array): boolean {
+  const pane = $('decode-preview');
   const mime = imageMime(filename, data);
-  if (!mime) {
-    pane.hidden = true;
-    return false;
-  }
+  if (!mime) return false;
   const buf = new ArrayBuffer(data.byteLength);
   new Uint8Array(buf).set(data);
   const url = URL.createObjectURL(new Blob([buf], { type: mime }));
   previewUrls.push(url);
+  const fig = document.createElement('figure');
+  fig.className = 'preview-item';
+  const caption = document.createElement('figcaption');
+  caption.textContent = filename;
   const img = document.createElement('img');
   img.src = url;
   img.alt = filename;
-  pane.appendChild(img);
+  fig.appendChild(caption);
+  fig.appendChild(img);
+  pane.appendChild(fig);
   pane.hidden = false;
   return true;
 }
