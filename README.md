@@ -6,11 +6,11 @@ AI-built based on https://github.com/hb9xar/7plus as reference and verified agai
 
 No formal licence is specified by Axel other than `* no commercial use * no sale * circulate freely *` so take that as you will.
 
-Usage instructions and hosted instance coming soon...
-
 ## Building and deploying
 
 The app is a fully static site — all encoding/decoding runs in the browser, there is no backend. Hosting is just a matter of serving the files in `dist/` from any static web server (nginx, Apache, S3, GitHub Pages, a USB stick, etc).
+
+**You can grab a release from the Releases section** or follow the instructions below to build it yourself.
 
 ### Prerequisites
 
