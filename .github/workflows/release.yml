@@ -8,6 +8,13 @@ on:
 permissions:
   contents: write
 
+# Opt JS-based actions into the Node.js 24 runtime (the v4/v2 action tags above
+# still ship with a Node 20 shim, which GitHub deprecated on 2025-09-19 and will
+# remove from runners on 2026-09-16). This override can come out once the
+# upstream actions publish Node-24 releases.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
